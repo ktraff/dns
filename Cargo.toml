@@ -1,0 +1,15 @@
+[package]
+name = "dns"
+version = "0.1.0"
+authors = ["Kyle Traff <ktraff@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "dns"
+path = "src/dns/lib.rs"
+
+[[bin]]
+name = "dnsparser"
+path = "src/parse.rs"
+
+[dependencies]
