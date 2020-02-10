@@ -95,6 +95,68 @@ impl DnsHeader {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum RecordType {
+    UNKNOWN = 0,
+    A = 1,
+    NS = 2,
+    CNAME = 5,
+}
+
+impl RecordType {
+    pub fn from_num(num: u16) -> RecordType {
+        match num {
+            1 => RecordType::A,
+            2 => RecordType::NS,
+            5 => RecordType::CNAME,
+            _ => RecordType::UNKNOWN,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum RecordClass {
+    UNKNOWN = 0,
+    IN = 1,
+    MX = 15,
+}
+
+impl RecordClass {
+    pub fn from_num(num: u16) -> RecordClass {
+        match num {
+            1 => RecordClass::IN,
+            15 => RecordClass::MX,
+            _ => RecordClass::UNKNOWN,
+        }
+    }
+}
+
+struct DnsQuestion {
+    name: String,
+    record_type: RecordType,
+    record_class: RecordClass,
+}
+
+impl DnsQuestion {
+    pub fn new() -> DnsQuestion {
+        DnsQuestion {
+            name: String::new(),
+            record_type: RecordType::UNKNOWN,
+            record_class: RecordClass::UNKNOWN,
+        }
+    }
+
+    pub fn read(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+        let mut output_str = String::new();
+        buf.read_label(&mut output_str)?;
+        self.name = output_str;
+        self.record_type = RecordType::from_num(buf.read_u16()?);
+        self.record_class = RecordClass::from_num(buf.read_u16()?);
+        
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,5 +191,24 @@ mod tests {
         assert_eq!(header.nameserver_count, 0);
         assert_eq!(header.additional_count, 0);
         assert_eq!(buf.pos, 12);
+    }
+
+    #[test]
+    fn test_question() {
+        let mut buf = DnsBuffer::new();
+        let mut f = File::open("response.txt").unwrap();
+        f.read(&mut buf.buf).unwrap();
+
+        let mut header = DnsHeader::new();
+        header.read(&mut buf).unwrap();
+
+        for _ in 0..header.question_count {
+            let mut question = DnsQuestion::new();
+            question.read(&mut buf).unwrap();
+
+            assert_eq!(question.name, "google.com");
+            assert_eq!(question.record_type, RecordType::A);
+            assert_eq!(question.record_class, RecordClass::IN);
+        }
     }
 }
