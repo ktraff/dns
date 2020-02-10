@@ -1,4 +1,5 @@
-use std::io::{Result, Error, ErrorKind};
+use std::io::{Result, Error, ErrorKind, Read};
+use std::fs::File;
 
 use crate::buffer::DnsBuffer;
 
@@ -12,7 +13,7 @@ enum ResponseCode {
 }
 
 impl ResponseCode {
-    pub fn from_num(&self, num: u8) -> ResponseCode {
+    pub fn from_num(num: u8) -> ResponseCode {
         match num {
             0 => ResponseCode::NOERROR,
             1 => ResponseCode::FORMERR,
@@ -52,15 +53,81 @@ struct DnsHeader {
 }
 
 impl DnsHeader {
-    pub fn read(buf: &mut DnsBuffer) -> Result<()> {
+    pub fn new() -> DnsHeader {
+        DnsHeader {
+            id: 0,
+            query_response: false,
+            opcode: 0,
+            authoritative_answer: false,
+            truncated_message: false,
+            recursion_desired: false,
+            recursion_available: false,
+            z: 0,
+            response_code: ResponseCode::NOERROR,
+            question_count: 0,
+            answer_count: 0,
+            nameserver_count: 0,
+            additional_count: 0
+        }
+    }
+
+    pub fn read(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+        self.id = buf.read_u16()?;
+
+        let cur = buf.read()?;
+        self.query_response = cur & 0x80 == 0x80;
+        self.opcode = (cur & 0x78) >> 3;
+        self.authoritative_answer = cur & 0x04 == 0x4;
+        self.truncated_message = cur & 0x02 == 0x02;
+        self.recursion_desired = cur & 0x01 == 0x01;
+
+        let cur = buf.read()?;
+        self.recursion_available = cur & 0x80 == 0x80;
+        self.z = (cur & 0x70) >> 4;
+        self.response_code = ResponseCode::from_num(cur & 0x0F);
+
+        self.question_count = buf.read_u16()?;
+        self.answer_count = buf.read_u16()?;
+        self.nameserver_count = buf.read_u16()?;
+        self.additional_count = buf.read_u16()?;
+
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bit_shift() {
+        // Bit shifting experiments to make sure my assumptions are correct
+        assert_eq!(0x80 >> 4, 0x8);
+        assert_eq!(0x70 >> 2, 0x1C);
+    }
+
     #[test]
     fn test_header() {
-        assert!(true)
+        let mut buf = DnsBuffer::new();
+        let mut f = File::open("response.txt").unwrap();
+        f.read(&mut buf.buf).unwrap();
+
+        let mut header = DnsHeader::new();
+        header.read(&mut buf).unwrap();
+
+        assert_eq!(header.id, 29600);
+        assert_eq!(header.query_response, true);
+        assert_eq!(header.opcode, 0);
+        assert_eq!(header.authoritative_answer, false);
+        assert_eq!(header.truncated_message, false);
+        assert_eq!(header.recursion_desired, true);
+        assert_eq!(header.recursion_available, true);
+        assert_eq!(header.z, 0);
+        assert_eq!(header.response_code, ResponseCode::NOERROR);
+        assert_eq!(header.question_count, 1);
+        assert_eq!(header.answer_count, 1);
+        assert_eq!(header.nameserver_count, 0);
+        assert_eq!(header.additional_count, 0);
+        assert_eq!(buf.pos, 12);
     }
 }
