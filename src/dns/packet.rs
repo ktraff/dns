@@ -1,4 +1,4 @@
-use std::io::{Result, Error, ErrorKind, Read};
+use std::io::{Result, Read};
 use std::fs::File;
 use std::net::Ipv4Addr;
 
@@ -208,6 +208,8 @@ enum DnsRecordBody {
 }
 
 impl DnsRecordBody {
+
+    /// Reads the DNS record body based on the record type provided by the record preamble.
     pub fn read(&mut self, record_type: &RecordType, buf: &mut DnsBuffer) -> Result<DnsRecordBody> {
         match *record_type {
             RecordType::A => {
