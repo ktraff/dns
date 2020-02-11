@@ -61,17 +61,18 @@ impl DnsBuffer {
 
     pub fn read_label(&mut self, output_str: &mut String) -> Result<()> {
         let mut pos = self.pos;
-        let is_jump = false;
+        let mut is_jump = false;
         let mut delimiter = "";
 
         loop {
             // Check to see if the next byte is a jump value
             let seek = self.get(pos)?;
-            let is_jump = (seek & 0xC0) == 0xC0;
-            if is_jump {
+            let is_jump_cur = (seek & 0xC0) == 0xC0;
+            if is_jump_cur {
+                is_jump = true;
                 let next = self.get(pos + 1)?;
-                let jump_value = (seek as u16) ^ 0xC0 << 8 |
-                                  next as u16;
+                let jump_value = seek ^ 0xC0;
+                let jump_value = (jump_value as u16) << 8 | (next as u16);
 
                 // Jump to that value.
                 pos = jump_value as usize;
