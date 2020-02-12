@@ -5,7 +5,7 @@ use std::net::Ipv4Addr;
 use crate::buffer::DnsBuffer;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum ResponseCode {
+pub enum ResponseCode {
     NOERROR = 0,
     FORMERR = 1,
     SERVFAIL = 2,
@@ -27,30 +27,30 @@ impl ResponseCode {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-struct DnsHeader {
-    id: u16,
+pub struct DnsHeader {
+    pub id: u16,
     // false if it is a query, true if it is a response
-    query_response: bool,
+    pub query_response: bool,
     // Usually always 0, can ignore
-    opcode: u8, // 4 bits
+    pub opcode: u8, // 4 bits
     // Set to true if the responding server has the canonical record for the query
-    authoritative_answer: bool,
+    pub authoritative_answer: bool,
     // true if the message exceeds 512 bytes and therefore needs to be reissued via TCP
-    truncated_message: bool,
-    recursion_desired: bool,
-    recursion_available: bool,
+    pub truncated_message: bool,
+    pub recursion_desired: bool,
+    pub recursion_available: bool,
     // Used for DNSSec, can ignore for now
-    z: u8,
+    pub z: u8,
     // Whether the response was successful
-    response_code: ResponseCode,
+    pub response_code: ResponseCode,
     // Number of DNS questions contained in the response
-    question_count: u16,
+    pub question_count: u16,
     // Number of DNS answers contained in the response
-    answer_count: u16,
+    pub answer_count: u16,
     // Number of DNS nameservers contained in the response
-    nameserver_count: u16,
+    pub nameserver_count: u16,
     // Number of additional DNS records contained in the response
-    additional_count: u16,
+    pub additional_count: u16,
 }
 
 impl DnsHeader {
@@ -97,7 +97,7 @@ impl DnsHeader {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum RecordType {
+pub enum RecordType {
     UNKNOWN = 0,
     A = 1,
     NS = 2,
@@ -125,7 +125,7 @@ impl RecordType {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum RecordClass {
+pub enum RecordClass {
     UNKNOWN = 0,
     IN = 1,
     MX = 15,
@@ -141,7 +141,8 @@ impl RecordClass {
     }
 }
 
-struct DnsQuestion {
+#[derive(Debug, PartialEq, Eq)]
+pub struct DnsQuestion {
     name: String,
     record_type: RecordType,
     record_class: RecordClass,
@@ -167,7 +168,8 @@ impl DnsQuestion {
     }
 }
 
-struct DnsRecordPreamble {
+#[derive(Debug, PartialEq, Eq)]
+pub struct DnsRecordPreamble {
     name: String,
     record_type: RecordType,
     record_class: RecordClass,
@@ -198,7 +200,7 @@ impl DnsRecordPreamble {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum DnsRecordBody {
+pub enum DnsRecordBody {
     UNKNOWN {
         record_type: u16
     },
@@ -226,7 +228,8 @@ impl DnsRecordBody {
     }
 }
 
-struct DnsRecord {
+#[derive(Debug, PartialEq, Eq)]
+pub struct DnsRecord {
     preamble: DnsRecordPreamble,
     body: DnsRecordBody
 }
@@ -248,12 +251,12 @@ impl DnsRecord {
     }
 }
 
-struct DnsPacket {
-    header: DnsHeader,
-    questions: Vec<DnsQuestion>,
-    answers: Vec<DnsRecord>,
-    authorities: Vec<DnsRecord>,
-    additional: Vec<DnsRecord>,
+pub struct DnsPacket {
+    pub header: DnsHeader,
+    pub questions: Vec<DnsQuestion>,
+    pub answers: Vec<DnsRecord>,
+    pub authorities: Vec<DnsRecord>,
+    pub additional: Vec<DnsRecord>,
 }
 
 impl DnsPacket {
