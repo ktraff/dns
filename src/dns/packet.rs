@@ -248,9 +248,74 @@ impl DnsRecord {
     }
 }
 
+struct DnsPacket {
+    header: DnsHeader,
+    questions: Vec<DnsQuestion>,
+    answers: Vec<DnsRecord>,
+    authorities: Vec<DnsRecord>,
+    additional: Vec<DnsRecord>,
+}
+
+impl DnsPacket {
+    pub fn new() -> DnsPacket {
+        DnsPacket {
+            header: DnsHeader::new(),
+            questions: Vec::new(),
+            answers: Vec::new(),
+            authorities: Vec::new(),
+            additional: Vec::new(),
+        }
+    }
+
+    pub fn read(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+        self.header.read(buf).unwrap();
+
+        for _ in 0..self.header.question_count {
+            let mut question = DnsQuestion::new();
+            question.read(buf).unwrap();
+            self.questions.push(question);
+        }
+
+        for _ in 0..self.header.answer_count {
+            let mut answer = DnsRecord::new();
+            answer.read(buf).unwrap();
+            self.answers.push(answer);
+        }
+
+        for _ in 0..self.header.nameserver_count {
+            let mut ns = DnsRecord::new();
+            ns.read(buf).unwrap();
+            self.authorities.push(ns);
+        }
+
+        for _ in 0..self.header.additional_count {
+            let mut record = DnsRecord::new();
+            record.read(buf).unwrap();
+            self.additional.push(record);
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assert_header(header: &DnsHeader) {
+        assert_eq!(header.id, 29600);
+        assert_eq!(header.query_response, true);
+        assert_eq!(header.opcode, 0);
+        assert_eq!(header.authoritative_answer, false);
+        assert_eq!(header.truncated_message, false);
+        assert_eq!(header.recursion_desired, true);
+        assert_eq!(header.recursion_available, true);
+        assert_eq!(header.z, 0);
+        assert_eq!(header.response_code, ResponseCode::NOERROR);
+        assert_eq!(header.question_count, 1);
+        assert_eq!(header.answer_count, 1);
+        assert_eq!(header.nameserver_count, 0);
+        assert_eq!(header.additional_count, 0);
+    }
 
     #[test]
     fn test_bit_shift() {
@@ -268,19 +333,7 @@ mod tests {
         let mut header = DnsHeader::new();
         header.read(&mut buf).unwrap();
 
-        assert_eq!(header.id, 29600);
-        assert_eq!(header.query_response, true);
-        assert_eq!(header.opcode, 0);
-        assert_eq!(header.authoritative_answer, false);
-        assert_eq!(header.truncated_message, false);
-        assert_eq!(header.recursion_desired, true);
-        assert_eq!(header.recursion_available, true);
-        assert_eq!(header.z, 0);
-        assert_eq!(header.response_code, ResponseCode::NOERROR);
-        assert_eq!(header.question_count, 1);
-        assert_eq!(header.answer_count, 1);
-        assert_eq!(header.nameserver_count, 0);
-        assert_eq!(header.additional_count, 0);
+        assert_header(&header);
         assert_eq!(buf.pos, 12);
 
         for _ in 0..header.question_count {
@@ -311,5 +364,39 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_parse_packet() {
+        let mut buf = DnsBuffer::new();
+        let mut f = File::open("response.txt").unwrap();
+        f.read(&mut buf.buf).unwrap();
+
+        let mut packet = DnsPacket::new();
+        packet.read(&mut buf);
+        assert_header(&packet.header);
+
+        assert_eq!(packet.header.question_count, 1);
+        assert_eq!(packet.questions[0].name, "google.com");
+        assert_eq!(packet.questions[0].record_type, RecordType::A);
+        assert_eq!(packet.questions[0].record_class, RecordClass::IN);
+
+
+        assert_eq!(packet.answers[0].preamble.name, "google.com");
+        assert_eq!(packet.answers[0].preamble.record_type, RecordType::A);
+        assert_eq!(packet.answers[0].preamble.record_class, RecordClass::IN);
+        assert_eq!(packet.answers[0].preamble.ttl, 64);
+        assert_eq!(packet.answers[0].preamble.length, 4);
+        match packet.answers[0].body {
+            DnsRecordBody::A {address} => {
+                assert_eq!(address, Ipv4Addr::new(172, 217, 14, 238));
+            },
+            _ => {
+                panic!("The A record should have an ip address");
+            }
+        }
+
+        assert_eq!(packet.header.nameserver_count, 0);
+        assert_eq!(packet.header.additional_count, 0);
     }
 }
