@@ -94,6 +94,11 @@ impl DnsHeader {
 
         Ok(())
     }
+
+    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -166,6 +171,11 @@ impl DnsQuestion {
         
         Ok(())
     }
+
+    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -197,6 +207,11 @@ impl DnsRecordPreamble {
         self.length = buf.read_u16()?;
         Ok(())
     }
+
+    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -226,6 +241,11 @@ impl DnsRecordBody {
             }
         }
     }
+
+    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -247,6 +267,11 @@ impl DnsRecord {
     pub fn read(&mut self, buf: &mut DnsBuffer) -> Result<()> {
         self.preamble.read(buf)?;
         self.body = self.body.read(&self.preamble.record_type, buf)?;
+        Ok(())
+    }
+
+    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+
         Ok(())
     }
 }
@@ -296,6 +321,11 @@ impl DnsPacket {
             record.read(buf).unwrap();
             self.additional.push(record);
         }
+        Ok(())
+    }
+
+    pub fn write(&mut self, hostname: &str, buf: &mut DnsBuffer) -> Result<()> {
+
         Ok(())
     }
 }
