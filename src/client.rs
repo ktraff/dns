@@ -9,6 +9,6 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let mut buf = DnsBuffer::new();
 
-    let mut packet = DnsPacket::from_query(&args[1]).unwrap();
+    let packet = DnsPacket::from_query(&args[1]).unwrap();
     packet.write(&mut buf).unwrap();
 }

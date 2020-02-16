@@ -24,6 +24,16 @@ impl ResponseCode {
             _ => ResponseCode::NOERROR
         }
     }
+
+    pub fn to_num(&self) -> u8 {
+        match self {
+            ResponseCode::NOERROR => 0,
+            ResponseCode::FORMERR => 1,
+            ResponseCode::SERVFAIL => 2,
+            ResponseCode::NXDOMAIN => 3,
+            ResponseCode::NOTIMP => 4
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -99,7 +109,34 @@ impl DnsHeader {
         buf.write_u16(self.id)?;
 
         let mut byte = 0 as u8;
-        // TODO
+        if self.query_response {
+            byte |= 0x80;
+        }
+        byte |= self.opcode << 3;
+        if self.authoritative_answer {
+            byte |= 0x04;
+        }
+        if self.truncated_message {
+            byte |= 0x02;
+        }
+        if self.recursion_desired {
+            byte |= 0x01;
+        }
+        buf.write(byte)?;
+
+        byte = 0 as u8;
+        if self.recursion_available {
+            byte |= 0x80;
+        }
+        byte |= self.z << 4;
+        byte |= self.response_code.to_num();
+        buf.write(byte)?;
+
+        buf.write_u16(self.question_count)?;
+        buf.write_u16(self.answer_count)?;
+        buf.write_u16(self.nameserver_count)?;
+        buf.write_u16(self.additional_count)?;
+
         Ok(())
     }
 }
@@ -356,6 +393,7 @@ impl DnsPacket {
     pub fn from_query(hostname: &String) -> Result<DnsPacket> {
         let mut packet = DnsPacket::new();
         packet.header.recursion_desired = true;
+        packet.header.question_count = 1;
 
         let mut question = DnsQuestion::new();
         question.name = String::from(hostname);
@@ -465,7 +503,7 @@ mod tests {
         f.read(&mut buf.buf).unwrap();
 
         let mut packet = DnsPacket::new();
-        packet.read(&mut buf);
+        packet.read(&mut buf).unwrap();
         assert_header(&packet.header);
 
         assert_eq!(packet.header.question_count, 1);
@@ -490,5 +528,37 @@ mod tests {
 
         assert_eq!(packet.header.nameserver_count, 0);
         assert_eq!(packet.header.additional_count, 0);
+    }
+
+    #[test]
+    fn test_write_packet() {
+        let packet = DnsPacket::from_query(&String::from("google.com")).unwrap();
+        assert!(packet.header.recursion_desired);
+        let mut buf = DnsBuffer::new();
+        packet.write(&mut buf).unwrap();
+
+        // Reset the buffer to 0 in order for it to be read again
+        buf.pos = 0;
+
+        let mut new_packet = DnsPacket::new();
+        new_packet.read(&mut buf).unwrap();
+
+        assert_eq!(new_packet.header.id, 0);
+        assert_eq!(new_packet.header.query_response, false);
+        assert_eq!(new_packet.header.opcode, 0);
+        assert_eq!(new_packet.header.authoritative_answer, false);
+        assert_eq!(new_packet.header.truncated_message, false);
+        assert_eq!(new_packet.header.recursion_desired, true);
+        assert_eq!(new_packet.header.recursion_available, false);
+        assert_eq!(new_packet.header.z, 0);
+        assert_eq!(new_packet.header.response_code, ResponseCode::NOERROR);
+        assert_eq!(new_packet.header.question_count, 1);
+        assert_eq!(new_packet.header.answer_count, 0);
+        assert_eq!(new_packet.header.nameserver_count, 0);
+        assert_eq!(new_packet.header.additional_count, 0);
+
+        assert_eq!(new_packet.questions[0].name, "google.com");
+        assert_eq!(new_packet.questions[0].record_type, RecordType::A);
+        assert_eq!(new_packet.questions[0].record_class, RecordClass::IN);
     }
 }
