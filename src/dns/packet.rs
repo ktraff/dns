@@ -95,8 +95,11 @@ impl DnsHeader {
         Ok(())
     }
 
-    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+    pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
+        buf.write_u16(self.id)?;
 
+        let mut byte = 0 as u8;
+        // TODO
         Ok(())
     }
 }
@@ -144,6 +147,14 @@ impl RecordClass {
             _ => RecordClass::UNKNOWN,
         }
     }
+
+    pub fn to_num(&self) -> u16 {
+        match *self {
+            RecordClass::IN => 1,
+            RecordClass::MX => 15,
+            _ => 0
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -172,8 +183,10 @@ impl DnsQuestion {
         Ok(())
     }
 
-    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
-
+    pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
+        buf.write_label(&self.name[..])?;
+        buf.write_u16(self.record_type.to_num())?;
+        buf.write_u16(self.record_class.to_num())?;
         Ok(())
     }
 }
@@ -208,8 +221,12 @@ impl DnsRecordPreamble {
         Ok(())
     }
 
-    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
-
+    pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
+        buf.write_label(&self.name[..])?;
+        buf.write_u16(self.record_type.to_num())?;
+        buf.write_u16(self.record_class.to_num())?;
+        buf.write_u32(self.ttl)?;
+        buf.write_u16(self.length)?;
         Ok(())
     }
 }
@@ -242,8 +259,19 @@ impl DnsRecordBody {
         }
     }
 
-    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
+    pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
+        match self {
+            DnsRecordBody::A { address } => {
+                buf.write(address.octets()[0])?;
+                buf.write(address.octets()[1])?;
+                buf.write(address.octets()[2])?;
+                buf.write(address.octets()[3])?;
+            },
+            // TODO: other record types
+            _ => {
 
+            }
+        }
         Ok(())
     }
 }
@@ -270,8 +298,9 @@ impl DnsRecord {
         Ok(())
     }
 
-    pub fn write(&mut self, buf: &mut DnsBuffer) -> Result<()> {
-
+    pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
+        self.preamble.write(buf)?;
+        self.body.write(buf)?;
         Ok(())
     }
 }
@@ -296,35 +325,65 @@ impl DnsPacket {
     }
 
     pub fn read(&mut self, buf: &mut DnsBuffer) -> Result<()> {
-        self.header.read(buf).unwrap();
+        self.header.read(buf)?;
 
         for _ in 0..self.header.question_count {
             let mut question = DnsQuestion::new();
-            question.read(buf).unwrap();
+            question.read(buf)?;
             self.questions.push(question);
         }
 
         for _ in 0..self.header.answer_count {
             let mut answer = DnsRecord::new();
-            answer.read(buf).unwrap();
+            answer.read(buf)?;
             self.answers.push(answer);
         }
 
         for _ in 0..self.header.nameserver_count {
             let mut ns = DnsRecord::new();
-            ns.read(buf).unwrap();
+            ns.read(buf)?;
             self.authorities.push(ns);
         }
 
         for _ in 0..self.header.additional_count {
             let mut record = DnsRecord::new();
-            record.read(buf).unwrap();
+            record.read(buf)?;
             self.additional.push(record);
         }
         Ok(())
     }
 
-    pub fn write(&mut self, hostname: &str, buf: &mut DnsBuffer) -> Result<()> {
+    pub fn from_query(hostname: &String) -> Result<DnsPacket> {
+        let mut packet = DnsPacket::new();
+        packet.header.recursion_desired = true;
+
+        let mut question = DnsQuestion::new();
+        question.name = String::from(hostname);
+        question.record_type =  RecordType::A;
+        question.record_class =  RecordClass::IN;
+        packet.questions.push(question);
+
+        Ok(packet)
+    }
+
+    pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
+        self.header.write(buf)?;
+
+        for idx in 0..self.header.question_count {
+            self.questions[idx as usize].write(buf)?;
+        }
+
+        for idx in 0..self.header.answer_count {
+            self.answers[idx as usize].write(buf)?;
+        }
+        
+        for idx in 0..self.header.nameserver_count {
+            self.authorities[idx as usize].write(buf)?;
+        }
+        
+        for idx in 0..self.header.nameserver_count {
+            self.additional[idx as usize].write(buf)?;
+        }
 
         Ok(())
     }
