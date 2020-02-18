@@ -12,35 +12,8 @@ fn main() {
     f.read(&mut buf.buf).unwrap();
 
     let mut packet = DnsPacket::new();
-    packet.read(&mut buf);
+    packet.read(&mut buf).unwrap();
 
-    println!("Header");
-    println!("------");
-    println!("{:?}", packet.header);
-    println!();
-    for idx in 0..packet.header.question_count {
-        println!("Question");
-        println!("--------");
-        println!("{:?}", packet.questions[idx as usize]);
-        println!();
-    }
-    for idx in 0..packet.header.answer_count {
-        println!("Answer");
-        println!("------");
-        println!("{:?}", packet.answers[idx as usize]);
-        println!();
-    }
-    for idx in 0..packet.header.nameserver_count {
-        println!("Authority");
-        println!("---------");
-        println!("{:?}", packet.authorities[idx as usize]);
-        println!();
-    }
-    for idx in 0..packet.header.additional_count {
-        println!("Additional");
-        println!("----------");
-        println!("{:?}", packet.additional[idx as usize]);
-        println!();
-    }
+    println!("{}", packet);
 
 }

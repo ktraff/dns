@@ -36,7 +36,21 @@ impl ResponseCode {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+impl std::fmt::Display for ResponseCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            ResponseCode::NOERROR => { write!(f, "NOERROR")?; },
+            ResponseCode::FORMERR => { write!(f, "FORMERR")?; },
+            ResponseCode::SERVFAIL => { write!(f, "SERVFAIL")?; },
+            ResponseCode::NXDOMAIN => { write!(f, "NXDOMAIN")?; },
+            ResponseCode::NOTIMP => { write!(f, "NOTIMP")?; },
+            _ => { write!(f, "UNKNOWN")?; },
+        }
+        Ok(())
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct DnsHeader {
     pub id: u16,
     // false if it is a query, true if it is a response
@@ -141,7 +155,18 @@ impl DnsHeader {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+impl std::fmt::Display for DnsHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "id={} qr={} opcode={} aa={} tc={} rd={} ra={} z={} rcode={}
+QUERY={} ANSWER={} AUTHORITY={} ADDITIONAL={}", self.id, self.query_response, self.opcode,
+               self.authoritative_answer, self.truncated_message, self.recursion_desired,
+               self.recursion_available, self.z, self.response_code, self.question_count,
+               self.answer_count, self.nameserver_count, self.additional_count)?;
+        Ok(())
+    }
+}
+
+#[derive(PartialEq, Eq)]
 pub enum RecordType {
     UNKNOWN = 0,
     A = 1,
@@ -169,7 +194,19 @@ impl RecordType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+impl std::fmt::Display for RecordType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            RecordType::A => { write!(f, "A")?; },
+            RecordType::NS => { write!(f, "NS")?; },
+            RecordType::CNAME => { write!(f, "CNAME")?; },
+            _ => { write!(f, "UNKNOWN")?; },
+        }
+        Ok(())
+    }
+}
+
+#[derive(PartialEq, Eq)]
 pub enum RecordClass {
     UNKNOWN = 0,
     IN = 1,
@@ -193,8 +230,20 @@ impl RecordClass {
         }
     }
 }
+ 
+impl std::fmt::Display for RecordClass {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            RecordClass::IN => { write!(f, "IN")?; },
+            RecordClass::MX => { write!(f, "MX")?; },
+            _ => { write!(f, "UNKNOWN")?; },
+        }
+        Ok(())
+    }
+}
 
-#[derive(Debug, PartialEq, Eq)]
+
+#[derive(PartialEq, Eq)]
 pub struct DnsQuestion {
     name: String,
     record_type: RecordType,
@@ -228,7 +277,14 @@ impl DnsQuestion {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+impl std::fmt::Display for DnsQuestion {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}\t{}\t{}", self.name, self.record_type, self.record_class)?;
+        Ok(())
+    }
+}
+
+#[derive(PartialEq, Eq)]
 pub struct DnsRecordPreamble {
     name: String,
     record_type: RecordType,
@@ -268,7 +324,15 @@ impl DnsRecordPreamble {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+
+impl std::fmt::Display for DnsRecordPreamble {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}\t{}\t{}\t{}\t{}", self.name, self.record_type, self.record_class, self.ttl, self.length)?;
+        Ok(())
+    }
+}
+
+#[derive(PartialEq, Eq)]
 pub enum DnsRecordBody {
     UNKNOWN {
         record_type: u16
@@ -313,7 +377,20 @@ impl DnsRecordBody {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+impl std::fmt::Display for DnsRecordBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            DnsRecordBody::A { address } => {
+                let octets = address.octets();
+                write!(f, "{}.{}.{}.{}", octets[0], octets[1], octets[2], octets[3])?;
+            },
+            _ => { write!(f, "UNKNOWN")?; },
+        }
+        Ok(())
+    }
+}
+
+#[derive(PartialEq, Eq)]
 pub struct DnsRecord {
     preamble: DnsRecordPreamble,
     body: DnsRecordBody
@@ -338,6 +415,13 @@ impl DnsRecord {
     pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
         self.preamble.write(buf)?;
         self.body.write(buf)?;
+        Ok(())
+    }
+}
+
+impl std::fmt::Display for DnsRecord {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}\n{}", self.preamble, self.body)?;
         Ok(())
     }
 }
@@ -423,6 +507,41 @@ impl DnsPacket {
             self.additional[idx as usize].write(buf)?;
         }
 
+        Ok(())
+    }
+}
+
+impl std::fmt::Display for DnsPacket {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "Header")?;
+        writeln!(f, "------")?;
+        writeln!(f, "{}", self.header)?;
+        writeln!(f, "")?;
+        writeln!(f, "Questions")?;
+        writeln!(f, "---------")?;
+        for idx in 0..self.header.question_count {
+            writeln!(f, "{}", self.questions[idx as usize])?;
+            writeln!(f, "")?;
+        }
+        writeln!(f, "Answers")?;
+        writeln!(f, "-------")?;
+        for idx in 0..self.header.answer_count {
+            writeln!(f, "{}", self.answers[idx as usize])?;
+            writeln!(f, "")?;
+        }
+        writeln!(f, "Authorities")?;
+        writeln!(f, "-----------")?;
+        for idx in 0..self.header.nameserver_count {
+            writeln!(f, "{}", self.authorities[idx as usize])?;
+            writeln!(f, "")?;
+        }
+        writeln!(f, "Additional")?;
+        writeln!(f, "----------")?;
+        for idx in 0..self.header.additional_count {
+            writeln!(f, "{}", self.additional[idx as usize])?;
+            writeln!(f, "")?;
+        }
+        
         Ok(())
     }
 }
