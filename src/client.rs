@@ -9,8 +9,12 @@ use dns::client::DnsClient;
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut buf = DnsBuffer::new();
+    let mut query_type = String::from("A");
+    if args.len() > 2 {
+        query_type = String::from(&args[2]);
+    }
 
-    let packet = DnsPacket::from_query(&args[1]).unwrap();
+    let packet = DnsPacket::from_query(&args[1], &query_type).unwrap();
     packet.write(&mut buf).unwrap();
 
     let client = DnsClient::new().unwrap();

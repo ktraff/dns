@@ -19,10 +19,10 @@ impl DnsClient<'_> {
     }
 
     pub fn query(&self, buf: &DnsBuffer) -> Result<DnsPacket> {
-        let bytes_written = self.socket.send_to(&buf.buf[0..buf.pos], self.server)?;
+        let _bytes_written = self.socket.send_to(&buf.buf[0..buf.pos], self.server)?;
         let mut response_buf = DnsBuffer::new();
         let mut response_packet = DnsPacket::new();
-        let (bytes_read, origin) = self.socket.recv_from(&mut response_buf.buf)?;
+        let (_bytes_read, _origin) = self.socket.recv_from(&mut response_buf.buf)?;
 
         response_packet.read(&mut response_buf)?;
         Ok(response_packet)

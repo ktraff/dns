@@ -1,6 +1,6 @@
 use std::io::{Result, Read};
 use std::fs::File;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use crate::buffer::DnsBuffer;
 
@@ -172,6 +172,8 @@ pub enum RecordType {
     A = 1,
     NS = 2,
     CNAME = 5,
+    MX = 15,
+    AAAA = 28,
 }
 
 impl RecordType {
@@ -180,6 +182,19 @@ impl RecordType {
             1 => RecordType::A,
             2 => RecordType::NS,
             5 => RecordType::CNAME,
+            15 => RecordType::MX,
+            28 => RecordType::AAAA,
+            _ => RecordType::UNKNOWN,
+        }
+    }
+
+    pub fn from_str(rec_type: &String) -> RecordType {
+        match &rec_type[..] {
+            "A" => RecordType::A,
+            "NS" => RecordType::NS,
+            "CNAME" => RecordType::CNAME,
+            "MX" => RecordType::MX,
+            "AAAA" => RecordType::AAAA,
             _ => RecordType::UNKNOWN,
         }
     }
@@ -189,6 +204,8 @@ impl RecordType {
             RecordType::A => 1,
             RecordType::NS => 2,
             RecordType::CNAME => 5,
+            RecordType::MX => 15,
+            RecordType::AAAA => 28,
             _ => 0,
         }
     }
@@ -209,6 +226,14 @@ impl PartialEq for RecordType {
                 if let RecordType::CNAME = *other { true }
                 else { false }
             },
+            RecordType::MX => {
+                if let RecordType::MX = *other { true }
+                else { false }
+            },
+            RecordType::AAAA => {
+                if let RecordType::AAAA = *other { true }
+                else { false }
+            },
             RecordType::UNKNOWN => {
                 if let RecordType::UNKNOWN = *other { true }
                 else { false }
@@ -224,6 +249,8 @@ impl std::fmt::Display for RecordType {
             RecordType::A => { write!(f, "A")?; },
             RecordType::NS => { write!(f, "NS")?; },
             RecordType::CNAME => { write!(f, "CNAME")?; },
+            RecordType::MX => { write!(f, "MX")?; },
+            RecordType::AAAA => { write!(f, "AAAA")?; },
             _ => { write!(f, "UNKNOWN")?; },
         }
         Ok(())
@@ -389,6 +416,13 @@ pub enum DnsRecordBody {
     },
     NS {
         name: String
+    },
+    MX {
+        priority: u16,
+        name: String
+    },
+    AAAA {
+        address: Ipv6Addr
     }
 }
 
@@ -409,6 +443,40 @@ impl DnsRecordBody {
                     name: output_str
                 })
             }
+            RecordType::NS => {
+                let mut output_str = String::new();
+                buf.read_label(&mut output_str)?;
+                Ok(DnsRecordBody::NS {
+                    name: output_str
+                })
+            }
+            RecordType::MX => {
+                let priority = buf.read_u16()?;
+                let mut output_str = String::new();
+                buf.read_label(&mut output_str)?;
+                Ok(DnsRecordBody::MX {
+                    name: output_str,
+                    priority: priority,
+                })
+            }
+            RecordType::AAAA => {
+                let raw_addr1 = buf.read_u32()?;
+                let raw_addr2 = buf.read_u32()?;
+                let raw_addr3 = buf.read_u32()?;
+                let raw_addr4 = buf.read_u32()?;
+                let addr = Ipv6Addr::new(((raw_addr1 >> 16) & 0xFFFF) as u16,
+                                         ((raw_addr1 >> 0) & 0xFFFF) as u16,
+                                         ((raw_addr2 >> 16) & 0xFFFF) as u16,
+                                         ((raw_addr2 >> 0) & 0xFFFF) as u16,
+                                         ((raw_addr3 >> 16) & 0xFFFF) as u16,
+                                         ((raw_addr3 >> 0) & 0xFFFF) as u16,
+                                         ((raw_addr4 >> 16) & 0xFFFF) as u16,
+                                         ((raw_addr4 >> 0) & 0xFFFF) as u16);
+    
+                Ok(DnsRecordBody::AAAA {
+                    address: addr,
+                })
+            },
             _ => {
                 Ok(DnsRecordBody::UNKNOWN {
                     record_type: record_type.to_num()
@@ -441,10 +509,20 @@ impl std::fmt::Display for DnsRecordBody {
                 let octets = address.octets();
                 write!(f, "{}.{}.{}.{}", octets[0], octets[1], octets[2], octets[3])?;
             },
-            DnsRecordBody::CNAME { name } => {
+            DnsRecordBody::CNAME { name } | DnsRecordBody::NS { name } => {
                 write!(f, "{}", name)?;
             },
-            _ => { write!(f, "UNKNOWN")?; },
+            DnsRecordBody::MX { priority, name } => {
+                write!(f, "{}\t{}", name, priority)?;
+            },
+            DnsRecordBody::AAAA { address } => {
+                let segments = address.segments();
+                write!(f, "{}:{}:{}:{}:{}:{}:{}:{}", segments[0], segments[1], segments[2],
+                    segments[3], segments[4], segments[5], segments[6], segments[7])?;
+            },
+            DnsRecordBody::UNKNOWN { record_type } => {
+                write!(f, "UNKNOWN: {}", record_type)?;
+            }
         }
         Ok(())
     }
@@ -534,14 +612,14 @@ impl DnsPacket {
         Ok(())
     }
 
-    pub fn from_query(hostname: &String) -> Result<DnsPacket> {
+    pub fn from_query(hostname: &String, query_type: &String) -> Result<DnsPacket> {
         let mut packet = DnsPacket::new();
         packet.header.recursion_desired = true;
         packet.header.question_count = 1;
 
         let mut question = DnsQuestion::new();
         question.name = String::from(hostname);
-        question.record_type =  RecordType::A;
+        question.record_type =  RecordType::from_str(query_type);
         question.record_class =  RecordClass::IN;
         packet.questions.push(question);
 
@@ -766,7 +844,7 @@ mod tests {
 
     #[test]
     fn test_write_packet() {
-        let packet = DnsPacket::from_query(&String::from("google.com")).unwrap();
+        let packet = DnsPacket::from_query(&String::from("google.com"), &String::from("A")).unwrap();
         assert!(packet.header.recursion_desired);
         let mut buf = DnsBuffer::new();
         packet.write(&mut buf).unwrap();
