@@ -870,7 +870,7 @@ mod tests {
         assert_eq!(new_packet.header.additional_count, 0);
 
         assert_eq!(new_packet.questions[0].name, "google.com");
-        // assert_eq!(new_packet.questions[0].record_type, RecordType::A);
-        // assert_eq!(new_packet.questions[0].record_class, RecordClass::IN);
+        assert_eq!(new_packet.questions[0].record_type, RecordType::A);
+        assert_eq!(new_packet.questions[0].record_class, RecordClass::IN);
     }
 }
