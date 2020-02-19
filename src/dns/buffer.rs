@@ -104,7 +104,6 @@ impl DnsBuffer {
         let b2 = ((bytes & 0xF00) >> 16) as u8;
         let b3 = ((bytes & 0xF0) >> 8) as u8;
         let b4 = (bytes & 0x0F) as u8;
-        println!("b1: {}, b2: {}, b3: {}, b4: {}", b1, b2, b3, b4);
         self.write(b1)?;
         self.write(b2)?;
         self.write(b3)?;
@@ -122,7 +121,12 @@ impl DnsBuffer {
             let seek = self.get(pos)?;
             let is_jump_cur = (seek & 0xC0) == 0xC0;
             if is_jump_cur {
-                is_jump = true;
+                if !is_jump {
+                    is_jump = true;
+                    // Move to the jump point, if we are not parsing
+                    // a label at a jump position
+                    self.seek(pos)?;
+                }
                 let next = self.get(pos + 1)?;
                 let jump_value = seek ^ 0xC0;
                 let jump_value = (jump_value as u16) << 8 | (next as u16);

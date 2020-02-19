@@ -383,6 +383,12 @@ pub enum DnsRecordBody {
     },
     A {
         address: Ipv4Addr
+    },
+    CNAME {
+        name: String
+    },
+    NS {
+        name: String
     }
 }
 
@@ -394,6 +400,13 @@ impl DnsRecordBody {
             RecordType::A => {
                 Ok(DnsRecordBody::A {
                     address: Ipv4Addr::new(buf.read()?, buf.read()?, buf.read()?, buf.read()?)
+                })
+            }
+            RecordType::CNAME => {
+                let mut output_str = String::new();
+                buf.read_label(&mut output_str)?;
+                Ok(DnsRecordBody::CNAME {
+                    name: output_str
                 })
             }
             _ => {
@@ -423,10 +436,13 @@ impl DnsRecordBody {
 
 impl std::fmt::Display for DnsRecordBody {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
+        match &self {
             DnsRecordBody::A { address } => {
                 let octets = address.octets();
                 write!(f, "{}.{}.{}.{}", octets[0], octets[1], octets[2], octets[3])?;
+            },
+            DnsRecordBody::CNAME { name } => {
+                write!(f, "{}", name)?;
             },
             _ => { write!(f, "UNKNOWN")?; },
         }
@@ -465,7 +481,7 @@ impl DnsRecord {
 
 impl std::fmt::Display for DnsRecord {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}\n{}", self.preamble, self.body)?;
+        write!(f, "{}\t{}", self.preamble, self.body)?;
         Ok(())
     }
 }
@@ -667,7 +683,7 @@ mod tests {
 
         let mut packet = DnsPacket::new();
         packet.read(&mut buf).unwrap();
-        assert_header(&packet.header);
+
 
         assert_eq!(packet.header.question_count, 1);
         assert_eq!(packet.questions[0].name, "google.com");
@@ -685,7 +701,62 @@ mod tests {
                 assert_eq!(address, Ipv4Addr::new(172, 217, 14, 238));
             },
             _ => {
-                panic!("The A record should have an ip address");
+                panic!("The A record should be a CNAME");
+            }
+        }
+
+        assert_eq!(packet.header.nameserver_count, 0);
+        assert_eq!(packet.header.additional_count, 0);
+    }
+
+    #[test]
+    fn test_parse_yahoo() {
+        let mut buf = DnsBuffer::new();
+        let mut f = File::open("www.yahoo.com.response.txt").unwrap();
+        f.read(&mut buf.buf).unwrap();
+        
+
+        let mut packet = DnsPacket::new();
+        packet.read(&mut buf).unwrap();
+        assert_eq!(packet.header.id, 49323);
+        assert_eq!(packet.header.query_response, true);
+        assert_eq!(packet.header.opcode, 0);
+        assert_eq!(packet.header.authoritative_answer, false);
+        assert_eq!(packet.header.truncated_message, false);
+        assert_eq!(packet.header.recursion_desired, true);
+        assert_eq!(packet.header.recursion_available, true);
+        assert_eq!(packet.header.z, 0);
+        assert_eq!(packet.header.response_code, ResponseCode::NOERROR);
+        assert_eq!(packet.header.question_count, 1);
+        assert_eq!(packet.header.answer_count, 5);
+        assert_eq!(packet.header.nameserver_count, 0);
+        assert_eq!(packet.header.additional_count, 0);
+
+        assert_eq!(packet.header.question_count, 1);
+        assert_eq!(packet.questions[0].name, "www.yahoo.com");
+        assert_eq!(packet.questions[0].record_type, RecordType::A);
+        assert_eq!(packet.questions[0].record_class, RecordClass::IN);
+
+        for i in 0..packet.header.answer_count {
+            let idx = i as usize;
+            match &packet.answers[idx].body {
+                DnsRecordBody::CNAME {name} => {
+                    assert_eq!(packet.answers[idx].preamble.name, "www.yahoo.com");
+                    assert_eq!(packet.answers[idx].preamble.record_type, RecordType::CNAME);
+                    assert_eq!(packet.answers[idx].preamble.record_class, RecordClass::IN);
+                    assert_eq!(packet.answers[idx].preamble.ttl, 857);
+                    assert_eq!(packet.answers[idx].preamble.length, 22);
+                    assert_eq!(name, "atsv2-fp-shed.wg1.b.yahoo.com");
+                },
+                DnsRecordBody::A {address} => {
+                    let valid_addrs = vec![Ipv4Addr::new(3, 89, 0, 22), Ipv4Addr::new(72, 30, 35, 10),
+                        Ipv4Addr::new(98, 138, 219, 232), Ipv4Addr::new(98, 138, 219, 231),
+                        Ipv4Addr::new(72, 30, 35, 9)];
+                    assert!(valid_addrs.contains(address));
+                },
+                _ => {
+                    panic!("There should be no unknown records: {}", packet.answers[idx]);
+                }
             }
         }
 
