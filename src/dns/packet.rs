@@ -1,4 +1,4 @@
-use std::io::{Result, Read};
+use std::io::{Result, Error, ErrorKind, Read};
 use std::fs::File;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -488,14 +488,25 @@ impl DnsRecordBody {
     pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
         match self {
             DnsRecordBody::A { address } => {
-                buf.write(address.octets()[0])?;
-                buf.write(address.octets()[1])?;
-                buf.write(address.octets()[2])?;
-                buf.write(address.octets()[3])?;
+                for octet in address.octets().iter() {
+                    buf.write(*octet)?;
+                }
             },
-            // TODO: other record types
+            DnsRecordBody::CNAME { name } | DnsRecordBody::NS { name } => {
+                buf.write_label(name)?;
+            },
+            DnsRecordBody::MX { priority, name } => {
+                buf.write_u16(*priority)?;
+                buf.write_label(name)?;
+            },
+            DnsRecordBody::AAAA { address } => {
+                for segment in address.segments().iter() {
+                    buf.write_u16(*segment)?;
+                }
+            },
             _ => {
-
+                let msg = format!("Skipping unknown record: {}", self);
+                return Err(Error::new(ErrorKind::InvalidInput, msg));
             }
         }
         Ok(())
