@@ -384,15 +384,6 @@ impl DnsRecordPreamble {
         self.length = buf.read_u16()?;
         Ok(())
     }
-
-    pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
-        buf.write_label(&self.name[..])?;
-        buf.write_u16(self.record_type.to_num())?;
-        buf.write_u16(self.record_class.to_num())?;
-        buf.write_u32(self.ttl)?;
-        buf.write_u16(self.length)?;
-        Ok(())
-    }
 }
 
 
@@ -484,33 +475,6 @@ impl DnsRecordBody {
             }
         }
     }
-
-    pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
-        match self {
-            DnsRecordBody::A { address } => {
-                for octet in address.octets().iter() {
-                    buf.write(*octet)?;
-                }
-            },
-            DnsRecordBody::CNAME { name } | DnsRecordBody::NS { name } => {
-                buf.write_label(name)?;
-            },
-            DnsRecordBody::MX { priority, name } => {
-                buf.write_u16(*priority)?;
-                buf.write_label(name)?;
-            },
-            DnsRecordBody::AAAA { address } => {
-                for segment in address.segments().iter() {
-                    buf.write_u16(*segment)?;
-                }
-            },
-            _ => {
-                let msg = format!("Skipping unknown record: {}", self);
-                return Err(Error::new(ErrorKind::InvalidInput, msg));
-            }
-        }
-        Ok(())
-    }
 }
 
 impl std::fmt::Display for DnsRecordBody {
@@ -562,8 +526,40 @@ impl DnsRecord {
     }
 
     pub fn write(&self, buf: &mut DnsBuffer) -> Result<()> {
-        self.preamble.write(buf)?;
-        self.body.write(buf)?;
+        buf.write_label(&self.preamble.name[..])?;
+        buf.write_u16(self.preamble.record_type.to_num())?;
+        buf.write_u16(self.preamble.record_class.to_num())?;
+        buf.write_u32(self.preamble.ttl)?;
+        let length_pos = buf.pos;
+        buf.write_u16(self.preamble.length)?;
+        
+        match &self.body {
+            DnsRecordBody::A { address } => {
+                for octet in address.octets().iter() {
+                    buf.write(*octet)?;
+                }
+            },
+            DnsRecordBody::CNAME { name } | DnsRecordBody::NS { name } => {
+                buf.write_label(&name[..])?;
+                let size = buf.pos - (length_pos + 2);
+                buf.set_u16(length_pos, size as u16)?;
+            },
+            DnsRecordBody::MX { priority, name } => {
+                buf.write_u16(*priority)?;
+                buf.write_label(&name[..])?;
+                let size = buf.pos - (length_pos + 2);
+                buf.set_u16(length_pos, size as u16)?;
+            },
+            DnsRecordBody::AAAA { address } => {
+                for segment in address.segments().iter() {
+                    buf.write_u16(*segment)?;
+                }
+            },
+            _ => {
+                let msg = format!("Skipping unknown record: {}", self);
+                return Err(Error::new(ErrorKind::InvalidInput, msg));
+            }
+        }
         Ok(())
     }
 }

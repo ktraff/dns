@@ -35,6 +35,20 @@ impl DnsBuffer {
         Ok(res)
     }
 
+    pub fn set(&mut self, pos: usize, val: u8) -> Result<()> {
+        if pos >= 512 {
+            return Err(Error::new(ErrorKind::InvalidInput, "Set position is beyond the buffer"));
+        }
+        self.buf[pos] = val;
+        Ok(())
+    }
+
+    pub fn set_u16(&mut self, pos: usize, val: u16) -> Result<()> {
+        self.set(pos,(val >> 8) as u8)?;
+        self.set(pos + 1, (val & 0xFF) as u8)?;
+        Ok(())
+    }
+
     pub fn get_label(&mut self, pos: usize) -> Result<String> {
         let tmp_pos = self.pos;
         self.pos = pos;

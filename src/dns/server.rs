@@ -43,7 +43,7 @@ impl DnsServer {
         response_packet.header.query_response = true;
         let mut response_buffer = DnsBuffer::new();
         response_packet.write(&mut response_buffer)?;
-        self.socket.send_to(&response_buffer.buf, src)?;
+        self.socket.send_to(&response_buffer.buf[0..response_buffer.pos], src)?;
         Ok(response_packet)
     }
 }
