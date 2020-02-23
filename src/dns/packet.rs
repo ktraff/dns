@@ -166,7 +166,7 @@ QUERY={} ANSWER={} AUTHORITY={} ADDITIONAL={}", self.id, self.query_response, se
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RecordType {
     UNKNOWN = 0,
     A = 1,
@@ -257,7 +257,7 @@ impl std::fmt::Display for RecordType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RecordClass {
     UNKNOWN = 0,
     IN = 1,
@@ -314,7 +314,7 @@ impl std::fmt::Display for RecordClass {
 }
 
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct DnsQuestion {
     name: String,
     record_type: RecordType,

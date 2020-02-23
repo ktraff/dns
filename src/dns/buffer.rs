@@ -84,8 +84,8 @@ impl DnsBuffer {
     }
 
     pub fn write_u16(&mut self, bytes: u16) -> Result<()> {
-        let b1 = ((bytes & 0xF0) >> 8) as u8;
-        let b2 = (bytes & 0x0F) as u8;
+        let b1 = (bytes >> 8) as u8;
+        let b2 = (bytes & 0xFF) as u8;
         self.write(b1)?;
         self.write(b2)?;
         Ok(())
@@ -100,10 +100,10 @@ impl DnsBuffer {
     }
 
     pub fn write_u32(&mut self, bytes: u32) -> Result<()> {
-        let b1 = ((bytes & 0xF000) >> 24) as u8;
-        let b2 = ((bytes & 0xF00) >> 16) as u8;
-        let b3 = ((bytes & 0xF0) >> 8) as u8;
-        let b4 = (bytes & 0x0F) as u8;
+        let b1 = ((bytes >> 24) & 0xFF) as u8;
+        let b2 = ((bytes >> 16) & 0xFF) as u8;
+        let b3 = ((bytes >> 8) & 0xFF) as u8;
+        let b4 = (bytes & 0xFF) as u8;
         self.write(b1)?;
         self.write(b2)?;
         self.write(b3)?;
@@ -174,6 +174,13 @@ impl DnsBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_bit_shift() {
+        assert_eq!(8 & 0xFF, 8 & 0x0F);
+        assert_eq!(17, 0x11);
+        assert_ne!(17 & 0xFF, 17 & 0x0F);
+    }
 
     #[test]
     fn test_read() {

@@ -16,4 +16,8 @@ path = "src/parse.rs"
 name = "dnsclient"
 path = "src/client.rs"
 
+[[bin]]
+name = "dnsserver"
+path = "src/server.rs"
+
 [dependencies]
