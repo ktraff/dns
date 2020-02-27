@@ -10,6 +10,7 @@ pub struct DnsClient<'a> {
     pub socket: UdpSocket,
 }
 
+/// Queries the Google DNS server using a provided DNS packet.
 impl DnsClient<'_> {
     pub fn new() -> Result<DnsClient<'static>> {
         Ok(DnsClient {

@@ -1,6 +1,7 @@
 use std::io::{Result, Error, ErrorKind, Read};
 use std::fs::File;
 
+/// Handles all the reading and writing of DNS packets.
 pub struct DnsBuffer {
     pub pos: usize,
     pub buf: [u8; 512]
@@ -49,6 +50,8 @@ impl DnsBuffer {
         Ok(())
     }
 
+    /// Reads a DNS label sequence, such as google.com, without advancing
+    /// the position of the buffer.
     pub fn get_label(&mut self, pos: usize) -> Result<String> {
         let tmp_pos = self.pos;
         self.pos = pos;
@@ -131,7 +134,8 @@ impl DnsBuffer {
         let mut delimiter = "";
 
         loop {
-            // Check to see if the next byte is a jump value
+            // Check to see if the next byte is a jump value.  A jump value
+            // will always begin with 2 1-bits, followed by the jump position.
             let seek = self.get(pos)?;
             let is_jump_cur = (seek & 0xC0) == 0xC0;
             if is_jump_cur {

@@ -99,6 +99,8 @@ impl DnsHeader {
     pub fn read(&mut self, buf: &mut DnsBuffer) -> Result<()> {
         self.id = buf.read_u16()?;
 
+        // Lots of bit twiddling.  See section 4.1.1 of 
+        // https://www.ietf.org/rfc/rfc1035.txt for details.
         let cur = buf.read()?;
         self.query_response = cur & 0x80 == 0x80;
         self.opcode = (cur & 0x78) >> 3;
